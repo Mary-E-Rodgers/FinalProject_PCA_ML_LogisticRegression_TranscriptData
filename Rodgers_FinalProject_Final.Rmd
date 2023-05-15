@@ -1,0 +1,506 @@
+---
+title: "Rodgers_FinalProject"
+author: "Mary E. Rodgers"
+date: '2023-05-15'
+output: 
+
+  html_document: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **1 Introduction**
+
+Seven to 10 children out of every 100 will be diagnosed with a specific language impairment (SLI) by the time they reach kindergarten by exhibiting symptoms of delays in language development (e.g., speaking, listening, reading and writing skills [2]. Specific symptoms include impairments in vocabulary and grammar [3], which are comorbid with challenging behavior [4]. Several standardized measures can be used to identify delays in expressive (i.e., saying) and receptive (i.e., understanding) language development such as Preschool Language Scales [5] through the production of a standard score and an age equivalence. However, understanding a child's current level of language development can also be assessed through transcripts of their language, viewed in stages of syntactical and morphological development [6] or through descriptive data such as the mean length of utterance or total number of words [7]. By understanding the components found within transcripts of SLI and typically developing (TD) children, transcript data can be used to predict if a child will receive a diagnosis of SLI. The objective of the current study was to develop a logistic regression model that could predict SLI or TD status based off of pre-determined language metrics derived from transcripts using R Studio [8]. In order to do this, a principal component analysis (PCA) on the transcript data of SLI and TD children will be conducted in order to create predictor variables. Then, machine learning methods will be used to run a logistic regression between the predictor components and the outcome variable of SLI or TD status.
+
+## *1.1 Research Questions*
+
+Our primary research question was: 1) What linguistic features predict SLI?
+
+Our secondary research question was: 2) Can the model accurately predict SLI or TD status to a significant degree?
+
+## *1.2 Data*
+
+The current data set was obtained from kaggle.com from user DGOKE1, containing 1163 instances of language data derived from transcripts of children between the ages of four to fifteen completing a wordless picture task [9, 10, 11]. This particular data set was created from three different data sets. The data set description on Kaggle indicated 1163 children, 919 typically developing and 346 with SLI. Further analysis of the data indicated that 267 children with SLI were in the data set. These children along with 267 randomly selected TD children were included in the analysis, analyzed using several R packages [13-22].
+
+The variables representing raw transcript data from the child that were included in this analysis were:
+
+-   child_TNW, the total number of words
+
+-   child_TNS, the total number of sentences
+
+-   freq_ttr, the frequency of word types to work token ratio
+
+-   r_2\_i_verbs, the ratio of raw to inflected verbs
+
+-   mor_words, the number of words in the mor tier
+
+-   num_pos_tags, the number of different part-of-speech tags
+
+-   n_dos, the number of times the child says 'do'
+
+-   repetition, the number of repetitions
+
+-   retracing, the number of times an utterance is abandoned and continues again
+
+-   fillers, the number of filler words (e.g., um, uh)
+
+-   average_syl, the average number of syllables per word
+
+-   mlu_words, the mean length of the words
+
+-   mlu_morphemes, the mean length of sentences
+
+-   verb_utt, the number of utterances consisting of verbs
+
+-   present_progressive, the number of present progressives
+
+-   preposition_in, the number of times 'in' is used
+
+-   preposition_on, the number of times 'on' is used
+
+-   plural_s, the number of times a plural is used
+
+-   irregular_past_tense, the number of times an irregular past tense is used
+
+-   posessive_s, the number of times a posessive is used
+
+-   uncontractible_copula, the number of times an uncontractible copula is used
+
+-   articles, the number of articles (i.e., a, an, the)
+
+-   regular_past_ed, the number of times a regular past tense is used
+
+-   regular_3rd_person_s, the number of times a regular third person is used
+
+-   uncontractible_aux, the number of times an uncontractible auxiliary is used
+
+-   contractible_copula, the number of times a contractible copula is used
+
+-   contractible_aux, the number of times a contractible auxiliary verb is used
+
+-   word_errors, the number of word errors in the transcript
+
+-   n_v, the number of nouns followed by a verb
+
+-   n_aux, the number nouns followed by an auxiliary verbs
+
+-   n_3s_v, the number of third singular nouns followed by a verb
+
+-   det_n\_pl, the number of determinant nouns followed by a personal pronoun
+
+-   det_pl_n, the number of determinant pronouns followed by a noun
+
+-   pro_aux, the number of pronouns followed by an auxiliary verb
+
+-   pro_3s_v, the number of singular nominative pronouns followed by a verb
+
+Source: <https://www.kaggle.com/datasets/dgokeeffe/specific-language-impairment>
+
+## *1.3 Git Hub*
+
+<https://github.com/Mary-E-Rodgers/FinalProject_PCA_ML_LogisticRegression_TranscriptData>
+
+# **2 Methods**
+
+## *2.1 Data wrangling*
+
+### 2.1.1 Preparing R
+
+First we connected to the CRAN mirror, cleared the global environment, and pulled in the necessary R packages.
+
+```{r}
+options(repos=c(CRAN="https://mirrors.nics.utk.edu/cran/"))
+
+rm(list=ls(all=TRUE))
+
+library(tidyverse) # this package contains tools for data cleaning and organization
+library(ggplot2) # this is used for data visualization
+library(dplyr) # this contains tools for data manipulation
+library(caret) # this contains functions for classification and regression raining
+library(car) # this is for variance inflation factor (VIF)
+library(corrplot) # this package is for visualizing your correlation
+library(relaimpo) # this is for variable importance
+library(PerformanceAnalytics) # this contains tools for performance and risk analysis
+library(glmnet) # this is for modeling generalized linear models
+library(psych) # this is for descriptive statistics
+library(stringr) #  this is a wrapper for common string applications
+```
+
+### 2.1.2 Importing your Data
+
+A tibble can then be created from the csv file and cleaned.
+
+```{r}
+all_data_R_tib <- read_csv("all_data_R.csv")
+```
+
+### 2.1.3 Cleaning your Data
+
+Messages and warnings about the code were enabled, and the tibble was called in. This tibble contained all of variables from the original .csv file that was downloaded. The variable of interests were selected using dplyr, and the structure was displayed.
+
+```{r message=TRUE, warning=TRUE}
+# enables code messages and warnings 
+
+all_data_R_tib2 <- all_data_R_tib %>% 
+  dplyr::select (child_TNW, child_TNS, freq_ttr, r_2_i_verbs, mor_words, num_pos_tags, n_dos, repetition, retracing, fillers, average_syl, mlu_words, mlu_morphemes, verb_utt, present_progressive, propositions_in, propositions_on, plural_s, irregular_past_tense, possessive_s, uncontractible_copula, articles, regular_past_ed, regular_3rd_person_s, uncontractible_aux, contractible_copula, contractible_aux, word_errors, n_v, n_aux, n_3s_v, det_n_pl, det_pl_n, pro_aux, pro_3s_v) # calls in the columns you want
+
+str(all_data_R_tib2) # this displays our clean tibble
+```
+
+#### 2.1.4 Visually checking the data
+
+The tibble was visually checked.
+
+```{r}
+print(all_data_R_tib2)
+```
+
+## *2.2. Checking for multi-collinearity between variables*
+
+### 2.2.1 Correlations
+
+A correlation was run on the entire tibble.
+
+```{r}
+cor(all_data_R_tib2) # this creates a correlation for your entire tibble
+```
+
+### 2.2.2 Check for multi-collinearity
+
+Multi-collinearity was checked by looking for correlations of the entire tibble and identifying anything with a correlation of 0.90 or above.
+
+Correlations above 0.90 were identified in mor_words with child_TNW (r = 0.99) and child_TNS (r = 0.92); mor_words was removed. Correlations above 0.90 were identified between child_TNS and child_TNW (r = 0.92); child_TNS was removed. Correlations above 0.90 were identified between mlu_morphemes and mlu_words (r = 0.99); mlu_morphemes was removed. Correlations above 0.90 were identified between uncontractible_aux and present_progressive (r = 0.92); uncontractible_aux was removed. Correlations above were identified between det_n\_pl and plural_s (r = 0.96); det_n\_pl was removed.
+
+After removing the variables that were causing multi-collinearity, a new tibble was produced using the remaining variables.
+
+```{r}
+model2_tib <- all_data_R_tib2 %>% #selecting the same variables but without the variables causing multi-colinearity
+  dplyr::select (child_TNW, freq_ttr, r_2_i_verbs, num_pos_tags, n_dos, repetition, retracing, fillers, average_syl, mlu_words, verb_utt, present_progressive, propositions_in, propositions_on, plural_s, irregular_past_tense, possessive_s, uncontractible_copula, articles, regular_past_ed, regular_3rd_person_s, contractible_copula, contractible_aux, word_errors, n_v, n_aux, n_3s_v, det_pl_n, pro_aux, pro_3s_v)
+
+model2_tib <- model2_tib %>%
+  na.omit()
+```
+
+The new tibble was checked again for correlations among the variables above 0.90, in case any were missed.
+
+```{r}
+cor(model2_tib)
+```
+
+The second model does not contain any variables correlating with each other above 0.90, confirming that multi-collinearity was no longer present.
+
+## *2.3 Scale Variables*
+
+The data in the tibble were scaled.
+
+```{r}
+model2_tib_sc <- model2_tib %>% 
+  na.omit() %>% 
+  mutate_at(c(1:30), ~(scale(.) %>% as.vector)) # scaling tibble columns 1-30
+
+str(model2_tib_sc)
+```
+
+## *2.4 Descriptives*
+
+Descriptive data of the variables analyzed.
+
+```{r}
+psych::describe(model2_tib_sc)
+```
+
+## *2.5 Bartlett's Test*
+
+Bartlett's test was used to see if the variables are related enough to be combined together into components.
+
+```{r}
+cortest.bartlett(model2_tib_sc, 1163) # 1163 indicates our current sample size
+```
+
+Bartlett's test revealed that the R-matrix was not an identity matrix (p \< .05), indicating that there is some relationship between the variables in the identity matrix. This allowed us to conduct the PCA.
+
+## *2.6 Kaiser-Meyer-Olkin (KMO) Assessment of Sampling Adequacy*
+
+A Kaiser-Meyer Oklin (KMO) assessment was done to see if the sample size of each variable was large enough to conduct a PCA.
+
+```{r}
+KMO(model2_tib_sc)
+```
+
+No variables below 0.50 were identified, indicating that the current variables were adequate in size.
+
+## *2.7 Baseline PCA to Check Sree Plot*
+
+The data were checked for SS loadings above 1 to determine the number of components in the PCA, and visually checked using a scree plot.
+
+```{r}
+pca_base <- principal(model2_tib_sc, nfactors = 30, rotate = "none")
+
+pca_base
+
+plot(pca_base$values, type = "b")
+```
+
+Based on the SS loadings and the sree plot, three components were chosen.
+
+## *2.8 Normal Distribution of Residuals*
+
+The data were checked for the normal distribution of residuals.
+
+```{r}
+pca_resid <- principal(model2_tib_sc, nfactors = 3, rotate = "none")
+pca_resid
+
+corMatrix<-cor(model2_tib_sc)
+
+residuals<-factor.residuals(corMatrix, pca_resid$loadings)
+
+hist(residuals)
+```
+
+The data appear to be normally distributed.
+
+## *2.9 PCA with Selected Number of Components*
+
+A PCA and visual of the PCA was performed with three components. This was based on the interpretation of the sree plot and SS loadings, as well as the identifiable similarities between the components created.
+
+```{r}
+pca_final <- principal(model2_tib_sc, nfactors = 3, rotate = "promax")
+pca_final
+
+print.psych(pca_final, cut = 0.3, sort = TRUE)
+
+plot(pca_final)
+
+fa.diagram(pca_final)
+```
+
+## *2.10 Interpretation of Components*
+
+At this point, the components were labeled.
+
+Component 1 contained: - articles (0.86) - child_TNW (0.84) - retracing (0.83) - freq_ttr (-0.80) - repetition (0.75) - n_v (0.73) - present_progressive (0.71) - uncontractible_copula (0.71) - irregular_past_tense (0.56) - pro_3s_v (0.56) - n_aux (0.56) - propositions_in (0.54) - propositions_on (0.51) - n_dos (0.49)
+
+Component 1 contained frequent sentence components, and was named 'Frequency1' as it was thought to represent frequent utterances.
+
+Component 2 contained: - verb_utt (0.76) - mlu_words (0.75) - num_pos_tags (0.67) - plural_s (0.63) - contractible_aux (0.49) - contractible_copula (0.42) - average_syl (0.41) - possessive_s (0.33)
+
+Component 2 contained sentence length indicator components, and was named 'Length2' as it was thought to represent the length of the utterances.
+
+Component 3 contained: - regular_3rd_person_s (0.86) - n_3s_v (0.83) - pro_aux (0.56) - regular_past_ed (-0.49)
+
+Component 3 contained pronoun and verb agreement components, and was named 'Agreement3' as it was though to represent agreement between the pronouns and verb forms.
+
+The variables fillers, r_2\_i_verbs, det_pl_n, and word_errors were not strong enough to be included in any component.
+
+```{r}
+pca_final_scores <- as.data.frame(pca_final$scores)
+
+pca_final_scores <- pca_final_scores %>% 
+  rename(Frequency1 = RC1, Length2 = RC2, Agreement3 = RC3)
+
+str(model2_tib_sc)
+```
+
+## *2.11 Creation of Component CSV*
+
+A CSV of the components was created.
+
+```{r}
+component_csv <- cbind(all_data_R_tib, pca_final_scores)
+str(component_csv)
+
+write.csv(component_csv,"pca_scores_final_df.csv", row.names=FALSE)
+```
+
+## *2.12 Modeling Data using Component Scores*
+
+### 2.12.1 Cross-validated model with feature selection
+
+First, a tibble containing the new components was joined with the original data set, and filtered to only contain the SLI group (n = 267) and a random sample of the TD group (n = 267).
+
+```{r}
+SLI_tib <- read_csv("pca_scores_final_df.csv") %>%
+  filter(Y == 1)
+
+TD_tib <- read_csv("pca_scores_final_df.csv") %>%
+  filter(Y == 0) %>%
+  slice_sample(n = 267)
+
+full_tib <- full_join(SLI_tib, TD_tib)
+
+final_tib <- full_tib %>% 
+  dplyr::select (Y, Frequency1, Length2, Agreement3)
+
+str(final_tib)
+print(final_tib)
+```
+
+A machine learning approach was used to create a cross-validated model with feature selection using the 10 fold lm method using caret. This model indicated that the components Length2 and Agreement3 were the best predictors of SLI status.
+
+```{r}
+set.seed(1234)
+
+train.control <- trainControl(method = "cv", number = 10) 
+
+machinemodel_1 <- train(Y ~ ., 
+                        data = final_tib,
+                        method = "glmStepAIC",
+                        direction = "backward",
+                        trControl = train.control,
+                        family = "binomial")
+
+summary(machinemodel_1) 
+
+machinemodel_1$bestTune 
+                   
+machinemodel_1$results
+summary(machinemodel_1$finalModel)
+```
+
+From the machine model, the coefficients can then be checked for suppression effects.
+
+### 2.12.2 Suppression Effects
+
+The model was checked for suppression effects by looking at the correlations between the predictors (Length2, Agreement3) and the outcome variable Y (SLI or TD), to see if any negative correlations between the predictor and outcome variables existed. No suppression effects were present. The negative estimates indicated that a decrease in the components Length2 and Agreement3 between the SLI to TD groups.
+
+```{r}
+coef(machinemodel_1$finalModel, 1)
+```
+
+### 2.12.3 Produce the Predicted and Actual Values
+
+The probabilities in percentages were produced by using the estimates of the coefficients.
+
+```{r}
+probabilities <- function(co_ef){
+  odds <- exp(co_ef)
+  prob <- odds/(1+odds)
+  return(prob)
+}
+
+
+estimates <- c(-0.9366501,-0.1851341)
+
+probabilities(estimates)
+```
+
+```{r}
+predicted <- unname(machinemodel_1$finalModel$fitted.values)
+
+final_tib$predicted.probabilities<-predicted
+
+final_tib <- final_tib %>% 
+  mutate(actual = ifelse(Y == "0", 1, 2)) %>% # if Y is 0, assign 1, otherwise 2
+  mutate(predicted = ifelse(predicted.probabilities < .50, 1, 2))
+
+final_tib$predicted <- as.factor(final_tib$predicted)
+final_tib$actual <- as.factor(final_tib$actual)
+
+str(final_tib)
+```
+
+```{r}
+table(final_tib$actual)
+```
+
+### 2.12.4 Creation of the Confusion Matrix
+
+The confusion marix was created using CARET.
+
+The confusion matrix indicated that of the 267 children with SLI, the model correctly predicted 173 (65%) and incorrectly predicted 94 (35%). Of the 267 TD children, the model correctly predicted 184 (69%) and incorrectly predicted 83 (31%).
+
+The exact metrics were: Kappa = 0.3371, Precision = 0.6479, Recall = 0.6758, and F1 = 0.6616.
+
+```{r}
+confusionMatrix(final_tib$actual, final_tib$predicted,
+                mode = "everything",
+                positive="1") # positive is SLI
+
+mosaic_table <- table(final_tib$actual, final_tib$predicted)
+mosaic_table #check on that table
+```
+
+### 2.11.5 Visualize using a Mosaic Plot
+
+The final model was visualized by creating a confusion matrix.
+
+```{r}
+mosaicplot(mosaic_table,
+           main = "Confusion Matrix",
+           sub = "Accuracy of Prediction",
+           xlab = "Predicted",
+           ylab = "Actual",
+           color = "darkslateblue",
+           border = "black")
+```
+
+# **3 Discussion**
+
+In response to the primary research question, "What linguistic features predict SLI?", the 10 fold lm method using caret [16], indicated that the components of Length2 and Agreement3 were the significant predictors. However, Length2 and Agreement3 could not significantly differentiate between true positives (accurately predicting SLI status) and false positives (predicting SLI status when actually TD). With this information, we can say that the answer to our secondary research question, "Can the model accurately predict SLI or TD status to a significant degree?" is no.
+
+
+In coming to this conclusion, variables with correlations above 0.90 were identified through the creation of a correlation matrix and removed to keep multi-collinearity out of the model (i.e., mor_words, child_TNS, mlu_morphemes, uncontractible_aux, and det_n\_pl). Bartlett's test revealed that the R-matrix was not an identity matrix (p \< .05), indicating that the remaining variables were similar enough to be grouped together in components. The KMO assessment indicated that the sample size of the remaining variables were large enough to conduct a PCA, as all variables were above 0.50. The baseline PCA and sree plot indicated that three components should be made. When checking the baseline PCA, it was observed that the residuals were normally distributed. The three components were named Frequency1, Length2, and Agreement3 for the variables the components contained were though tto represent. The variables fillers, r_2\_i_verbs, det_pl_n, and word_errors were not strong enough to be included in any component.
+
+That data was modeled using cross-validation with feature selection, with no suppression effects observed. The negative estimates indicated that a decrease in the components Length2 and Agreement3 between the SLI to TD groups. The cross-validated model indicated that Length2 and Agreement3 were significant predictors of SLI status in the logistic regression, which was included in the final model.
+
+The confusion marix was created using CARET. The exact metrics were: Kappa = 0.3371, Precision = 0.6479, Recall = 0.6758, and F1 = 0.6616. The confusion matrix indicated that of the 267 children with SLI, the model correctly predicted 173 (65%) and incorrectly predicted 94 (35%). Of the 267 TD children, the model correctly predicted 184 (69%) and incorrectly predicted 83 (31%). The confusion matrix showed that Mcnemar's Test p-value was greater than 0.05 (p = 0.45), which indicated that there was not a significant difference between true positives and false positives.
+
+This indicates that while the Length2 and Agreement3 variables produced from the PCA were significant predictor of SLI status, the model could not distinguish between predicting SLI or TD status to a significant degree. A mosaic plot of the confusion matrix was created, which visualized this result.
+
+Future research should consider using more components to predict SLI status, or create components from different measures taken from the transcripts such as the number of unique subjects or the number of unique subject-verb combinations [6, 7]
+
+This research was limited in the small SLI sample available (n = 267), and the pre-determined variables that went into the PCA from the available data set.
+
+# **4 References**
+
+1.  Rodgers, M. E. FinalProject_PCA_ML_LogisticRegression_TranscriptData. <https://github.com/Mary-E-Rodgers/FinalProject_PCA_ML_LogisticRegression_TranscriptData> 
+
+2.  National Institute of Health, Deafness and Other Communication Disorders. NIDCD Fact Sheet: Voice Speech and Language, Specific Language Impairment. U.S. Department of Health and Human Services.
+
+3.  Curtis, P. R., Roberts, M. Y., Estabrook, R., & Kaiser, A. P. The longitudinal effects of early language intervention on Children's Problem Behaviors. \*Child Development\*. 2017; 90(2): 576-592.
+
+4.  Ervin, M. SLI: what we know and why it matters. \*American Speech and Hearing Association\*. 2001; 6(12).
+
+5.  Zimmerman, I. L., Steiner, V. G., & Pond, R. E. Preschool Language Scale, Fifth Edition (PLS-5) [Database record]. PsycTESTS. 2011.
+
+6.  Hadley, P. Exploring sentence diversity at the boundary of typical and impaired language abilities. \*Journal of Speech, Language, and Hearing Research\*. 2020; 63: 3236-3251.
+
+7.  Hadley, P., McKenna, M., & Rispoli, M. Sentence diversity in early language development: Recommendations for target selection and progress monitoring. American Journal of Speech-Language. 2018; 27: 553-565.
+
+8.  RStudio Team. RStudio: Integrated Development for R. RStudio, PBC, Boston, MA, 2020.
+
+9.  Dgoke1. (2018). Diagnose Specific Language Impairment in Children, Version 6. Retrieved April 21, 2023 from <https://www.kaggle.com/datasets/dgokeeffe/specific-language-impairment.>
+
+10. D. Wetherell, N. Botting, and G. Conti-Ramsden. Narrative skills in adolescents with a history of SLI in relation to non-verbal IQ scores. \*Child Language Teaching and Therapy\*. 2007; 23(1): 95\--113.
+
+11. Schneider, D. Hayward, and R. V. Dub. Storytelling from pictures using the Edmonton Narrative Norms Instrument, 2006.
+
+12. Gillam, R. Pearson, N. Test of Narrative Language. Austin, TX: Pro-Ed Inc., 2004.
+
+13. Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., Grolemund, G., Hayes, A., Henry, L., Hester, J.,  Kuhn, M., Pedersen, T. L., Miller, E., Bache, S. M., Müller, K., Ooms, J., Robinson, D., Seidel, D. P., Spinu, V., Takahashi, K., Vaughan, D., Wilke, C., Woo, K., Yutani, H. (2019). \"Welcome to the tidyverse.\" \_Journal of Open Source Software\_, \*4\*(43), 1686. doi:10.21105/joss.01686  <https://doi.org/10.21105/joss.01686>.
+
+14. Wickham, H.. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
+
+15. Wickham, H., François, R., Henry, L., Müller, K., Vaughan, D. (2023). \_dplyr: A Grammar of Data Manipulation\_. R package version 1.1.0,  <https://CRAN.R-project.org/package=dplyr>.
+
+16. Kuhn, M. (2022). \_caret: Classification and Regression Training\_. R package version 6.0-93, <https://CRAN.R-project.org/package=caret>.
+
+17. Fox, J., Weisberg, S. (2019). An {R} Companion to Applied Regression, Third Edition. Thousand Oaks CA: Sage. URL:  <https://socialsciences.mcmaster.ca/jfox/Books/Companion/>
+
+18. Grömping, U. (2006). Relative Importance for Linear Regression in R: The Package relaimpo. Journal of Statistical Software, 17(1), 1\--27.
+
+19. Peterson, B. G., Carl, P. (2020). \_PerformanceAnalytics: Econometric Tools for Performance and Risk Analysis\_. R package version 2.0.4, <https://CRAN.R-project.org/package=PerformanceAnalytics>.
+
+20. JFriedman, J., Hastie, T., Tibshirani, R.  (2010). Regularization Paths for Generalized Linear Models via Coordinate Descent. Journal of Statistical Software, 33(1), 1-22. URL  <https://www.jstatsoft.org/v33/i01/.>
+
+21. Revelle, W. (2023). \_psych: Procedures for Psychological, Psychometric, and Personality Research\_. Northwestern University, Evanston, Illinois. R package version 2.3.3, <https://CRAN.R-project.org/package=psych>.
+
+22. Wickham, H. (2022). \_stringr: Simple, Consistent Wrappers for Common String Operations\_. R package version 1.5.0, \<[https://CRAN.R-project.org/package=stringr](https://cran.r-project.org/package=stringr)\>.
+
+23. Kaiser, A., Roberts, M, & Hadley, P. Maximizing outcomes for preschoolers with developmental language disorder: Testing the effects of a sequentially targeted naturalistic intervention. In Preparation.
+```
